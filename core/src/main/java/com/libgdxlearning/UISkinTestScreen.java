@@ -20,7 +20,7 @@ public class UISkinTestScreen implements Screen {
         stage = new Stage(new ScreenViewport());
         
         // Load the UI skin
-        skin = new Skin(Gdx.files.internal("assets/uiskin.json"));
+        skin = new Skin(Gdx.files.internal("uiskin.json"));
         
         // Create a table for layout
         Table table = new Table();

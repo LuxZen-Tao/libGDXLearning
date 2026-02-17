@@ -24,7 +24,7 @@ import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 
 // In your Screen's show() method:
 Stage stage = new Stage();
-Skin skin = new Skin(Gdx.files.internal("assets/uiskin.json"));
+Skin skin = new Skin(Gdx.files.internal("uiskin.json"));
 
 // Create UI elements
 Label label = new Label("Hello World", skin);
