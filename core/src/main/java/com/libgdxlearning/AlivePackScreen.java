@@ -26,6 +26,13 @@ public class AlivePackScreen implements Screen {
     private Stage stage;
     private Skin skin;
     private ToastManager toast;
+    private ChaosFX chaosFX;
+    private int lastChaosForSpike = 0;
+
+    // tiny camera shake offsets
+    private float shakeTime = 0f;
+    private float shakeStrength = 0f;
+
 
     private Table root;
     private Label cashLabel;
@@ -65,6 +72,9 @@ public class AlivePackScreen implements Screen {
     @Override
     public void show() {
         sim = new SimState();
+        chaosFX = new ChaosFX();
+        lastChaosForSpike = sim.chaos;
+
 
         batch = new SpriteBatch();
         font = new BitmapFont();
@@ -350,10 +360,17 @@ public class AlivePackScreen implements Screen {
 
     private void drawWorld() {
         batch.begin();
+        float ox = 0f, oy = 0f;
+        if (shakeTime > 0f) {
+            // deterministic-ish jitter using time
+            float t = (float)sim.minutes * 0.2f;
+            ox = (float)Math.sin(t * 13.7f) * shakeStrength;
+            oy = (float)Math.cos(t * 11.3f) * shakeStrength;
+        }
 
         // Floor
         batch.setColor(0.08f, 0.08f, 0.12f, 1f);
-        batch.draw(whitePixel, worldX, worldY, worldW, worldH);
+        batch.draw(whitePixel, worldX + ox, worldY + oy, worldW, worldH);
 
         float time = (float) sim.minutes * 0.02f; // slow oscillation
 
@@ -366,14 +383,44 @@ public class AlivePackScreen implements Screen {
             // Per-agent colour variance (requires Agent.r/g/b fields + spawn init)
             batch.setColor(a.r, a.g, a.b, 1f);
 
-            batch.draw(
-                    whitePixel,
-                    a.x - size / 2f,
-                    a.y - size / 2f + bob,
-                    size,
-                    size
+            batch.draw(whitePixel,
+                    a.x + ox - size/2f,
+                    a.y + oy - size/2f + bob,
+                    size, size
             );
         }
+
+        // Spills (semi-transparent, fade out)
+        for (Spill s : chaosFX.getSpills()) {
+            float alpha = Math.max(0f, s.life / s.maxLife);
+            batch.setColor(0.6f, 0.2f, 0.2f, 0.25f * alpha); // reddish stain
+            float r = s.radius;
+            batch.draw(whitePixel, s.x + ox - r, s.y + oy - r, r * 2, r * 2);
+        }
+
+        // Alert bubbles above random agents
+        if (!worldSim.getAgents().isEmpty()) {
+            int agentCount = worldSim.getAgents().size();
+            for (AlertBubble b : chaosFX.getBubbles()) {
+                // choose a target agent if not set or out of range
+                if (b.agentIndex < 0 || b.agentIndex >= agentCount) {
+                    b.agentIndex = (int)(Math.random() * agentCount);
+                }
+
+                Agent a = worldSim.getAgents().get(b.agentIndex);
+                float alpha = Math.max(0f, b.life / b.maxLife);
+
+                // bubble background
+                batch.setColor(1f, 1f, 1f, 0.75f * alpha);
+                batch.draw(whitePixel, a.x + ox - 7, a.y + oy + 18, 14, 14);
+
+                // exclamation mark (tiny rectangle)
+                batch.setColor(0.1f, 0.1f, 0.1f, 0.9f * alpha);
+                batch.draw(whitePixel, a.x + ox - 1, a.y + oy + 21, 2, 8);
+                batch.draw(whitePixel, a.x + ox - 1, a.y + oy + 18, 2, 2);
+            }
+        }
+
 
         // Reset for safety
         batch.setColor(1f, 1f, 1f, 1f);
@@ -390,6 +437,20 @@ public class AlivePackScreen implements Screen {
         if (!sim.paused) {
             worldSim.update(dt * sim.speedMultiplier);
         }
+        // Chaos FX update (spills + bubbles)
+        chaosFX.update(dt, sim.chaos, worldX, worldY, worldW, worldH);
+
+// If chaos jumped up, trigger a tiny shake
+        if (sim.chaos > lastChaosForSpike) {
+            int jump = sim.chaos - lastChaosForSpike;
+            shakeTime = 0.25f;
+            shakeStrength = Math.min(6f, 2f + jump * 1.5f);
+        }
+        lastChaosForSpike = sim.chaos;
+
+// decay shake
+        if (shakeTime > 0f) shakeTime -= dt;
+
         int targetCount = 20 + sim.chaos * 2;
 
         if (worldSim.getAgents().size() != targetCount) {
