@@ -9,11 +9,14 @@ public class WorldSim {
     private final Random rng = new Random(12345); // stable for gym
     private final List<Agent> agents = new ArrayList<>();
 
-    // World bounds (set from screen layout)
+    // World bounds
     private float x, y, w, h;
 
     public void setBounds(float x, float y, float w, float h) {
-        this.x = x; this.y = y; this.w = w; this.h = h;
+        this.x = x;
+        this.y = y;
+        this.w = w;
+        this.h = h;
     }
 
     public List<Agent> getAgents() { return agents; }
@@ -41,12 +44,11 @@ public class WorldSim {
                 a.changeTimer = rand(0.8f, 3.0f);
             }
 
-            // Move towards target (simple seek)
             float dx = a.tx - a.x;
             float dy = a.ty - a.y;
-            float dist2 = dx*dx + dy*dy;
+            float dist2 = dx * dx + dy * dy;
 
-            if (dist2 < 4f) { // close enough
+            if (dist2 < 4f) {
                 pickNewTarget(a);
             } else {
                 float dist = (float)Math.sqrt(dist2);
@@ -57,7 +59,6 @@ public class WorldSim {
                 a.y += vy * a.speed * dt;
             }
 
-            // Clamp inside bounds
             a.x = clamp(a.x, x, x + w);
             a.y = clamp(a.y, y, y + h);
         }
