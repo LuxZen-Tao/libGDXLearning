@@ -15,13 +15,27 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.math.Vector3;
+import com.badlogic.gdx.Input;
+
 
 public class AlivePackScreen implements Screen {
+    private static final byte T_VOID   = 0;
+    private static final byte T_FLOOR  = 1;
+    private static final byte T_WALL   = 2;
+    private static final byte T_BAR    = 3;
+    private static final byte T_KITCH  = 4;
+    private static final byte T_TABLE  = 5;
+    private static final byte T_TOILET = 6;
+
 
     private SpriteBatch batch;
     private BitmapFont font;
+    private OrthographicCamera worldCam;
 
     private SimState sim;
+
 
     private Stage stage;
     private Skin skin;
@@ -32,6 +46,10 @@ public class AlivePackScreen implements Screen {
     // tiny camera shake offsets
     private float shakeTime = 0f;
     private float shakeStrength = 0f;
+    private Container<Label> cashBox;
+    private Container<Label> repBox;
+    private Container<Label> chaosBox;
+    private Container<Label> moraleBox;
 
 
     private Table root;
@@ -60,10 +78,18 @@ public class AlivePackScreen implements Screen {
     private TextButton rightDrawerBtn;
 
     private Texture whitePixel;
-    private WorldSim worldSim;
+    private TileWorldSim worldSim;
 
     // World area bounds (screen coords)
     private float worldX, worldY, worldW, worldH;
+    private int gridW = 40;
+    private int gridH = 26;
+    private int tileSize = 16; // Gameboy-ish chunk
+    private byte[][] tiles;
+
+    // Camera tuning
+    private float camSpeed = 300f;
+    private float zoomSpeed = 0.08f;
 
     public AlivePackScreen() {
         // Intentionally empty: create resources in show() to avoid leaks / lifecycle issues.
@@ -83,8 +109,18 @@ public class AlivePackScreen implements Screen {
         Gdx.input.setInputProcessor(stage);
 
         whitePixel = DebugPixel.createWhitePixel();
-        worldSim = new WorldSim();
+        worldCam = new OrthographicCamera();
+        worldCam.setToOrtho(false, Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        worldCam.position.set((gridW * tileSize) / 2f, (gridH * tileSize) / 2f, 0f);
+        worldCam.zoom = 1.0f;
+        worldCam.update();
 
+        tiles = new byte[gridW][gridH];
+        buildDemoPubLayout();
+
+        worldSim = new TileWorldSim();
+        worldSim.setMap(tiles, gridW, gridH, tileSize);
+        worldSim.spawn(30);
         // Your assets are inside desktop/resources/assets/, so include "assets/" in the path:
         skin = new Skin(Gdx.files.internal("assets/uiskin.json"));
 
@@ -112,11 +148,24 @@ public class AlivePackScreen implements Screen {
         moraleLabel = new Label("Morale: 0", skin);
         timeLabel = new Label("Day 1  00:00", skin);
 
+// Wrap stats in containers so scale + flash is visible
+        cashBox = new Container<>(cashLabel);
+        repBox = new Container<>(repLabel);
+        chaosBox = new Container<>(chaosLabel);
+        moraleBox = new Container<>(moraleLabel);
+
+// Important: allow transforms (so scaling works reliably)
+        cashBox.setTransform(true);
+        repBox.setTransform(true);
+        chaosBox.setTransform(true);
+        moraleBox.setTransform(true);
+
         topHud.add(timeLabel).left().expandX().fillX();
-        topHud.add(cashLabel).padLeft(12);
-        topHud.add(repLabel).padLeft(12);
-        topHud.add(chaosLabel).padLeft(12);
-        topHud.add(moraleLabel).padLeft(12);
+        topHud.add(cashBox).padLeft(12);
+        topHud.add(repBox).padLeft(12);
+        topHud.add(chaosBox).padLeft(12);
+        topHud.add(moraleBox).padLeft(12);
+
 
         lastCash = sim.cash;
         lastRep = sim.reputation;
@@ -135,6 +184,8 @@ public class AlivePackScreen implements Screen {
 
         TextButton saleBtn = new TextButton("Sim Sale (+£50)", skin);
         TextButton chaosUpBtn = new TextButton("Chaos (+2)", skin);
+        TextButton chaosDownBtn = new TextButton("Chaos (-5)", skin);
+
         TextButton repDownBtn = new TextButton("Rep (-3)", skin);
         TextButton moraleUpBtn = new TextButton("Morale (+2)", skin);
 
@@ -147,8 +198,14 @@ public class AlivePackScreen implements Screen {
 
         chaosUpBtn.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
-                sim.addChaos(2);
+                sim.addChaos(20);
                 toast.show("Chaos increased");
+            }
+        });
+        chaosDownBtn.addListener(new ClickListener() {
+            @Override public void clicked(InputEvent event, float x, float y) {
+                sim.addChaos(-50);
+                toast.show("Chaos decreased");
             }
         });
 
@@ -221,6 +278,7 @@ public class AlivePackScreen implements Screen {
         bottomControls.add(testToastBtn);
         bottomControls.add(saleBtn);
         bottomControls.add(chaosUpBtn);
+        bottomControls.add(chaosDownBtn);
         bottomControls.add(repDownBtn);
         bottomControls.add(moraleUpBtn);
         bottomControls.add(pauseBtn);
@@ -245,7 +303,6 @@ public class AlivePackScreen implements Screen {
 
         // Initial world bounds guess (also set properly in resize)
         computeWorldBounds(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
-        worldSim.setBounds(worldX, worldY, worldW, worldH);
         worldSim.spawn(30);
 
         toast.show("Agents spawned: " + worldSim.getAgents().size());
@@ -334,16 +391,29 @@ public class AlivePackScreen implements Screen {
         ));
     }
 
-    private void pop(com.badlogic.gdx.scenes.scene2d.Actor actor) {
+    private void popAndFlash(com.badlogic.gdx.scenes.scene2d.Actor actor) {
         actor.clearActions();
+
         actor.setOrigin(Align.center);
         actor.setScale(1f);
 
-        actor.addAction(Actions.sequence(
-                Actions.scaleTo(1.12f, 1.12f, 0.08f),
-                Actions.scaleTo(1.0f, 1.0f, 0.12f)
+        // Flash: brighten then return (works on container tint)
+        actor.getColor().a = 1f;
+
+        actor.addAction(Actions.parallel(
+                Actions.sequence(
+                        Actions.scaleTo(1.18f, 1.18f, 0.07f),
+                        Actions.scaleTo(1.0f, 1.0f, 0.12f)
+                ),
+                        Actions.sequence(
+                                Actions.color(new com.badlogic.gdx.graphics.Color(1f, 0.9f, 0.3f, 1f), 0.06f),
+                                Actions.color(new com.badlogic.gdx.graphics.Color(1f, 1f, 1f, 1f), 0.14f)
+                        )
+
+
         ));
     }
+
 
     @Override
     public void render(float delta) {
@@ -359,6 +429,8 @@ public class AlivePackScreen implements Screen {
     }
 
     private void drawWorld() {
+        batch.setProjectionMatrix(worldCam.combined);
+
         batch.begin();
         float ox = 0f, oy = 0f;
         if (shakeTime > 0f) {
@@ -368,27 +440,46 @@ public class AlivePackScreen implements Screen {
             oy = (float)Math.cos(t * 11.3f) * shakeStrength;
         }
 
+        batch.setProjectionMatrix(worldCam.combined);
+
         // Floor
-        batch.setColor(0.08f, 0.08f, 0.12f, 1f);
-        batch.draw(whitePixel, worldX + ox, worldY + oy, worldW, worldH);
+        // Clear-ish background “outside building”
+        batch.setColor(0.04f, 0.04f, 0.06f, 1f);
+        batch.draw(whitePixel, -5000, -5000, 10000, 10000);
 
-        float time = (float) sim.minutes * 0.02f; // slow oscillation
+// Draw tiles
+        for (int x = 0; x < gridW; x++) {
+            for (int y = 0; y < gridH; y++) {
+                byte t = tiles[x][y];
+                if (t == T_VOID) continue;
 
+                // pick a color per tile type (simple palette)
+                switch (t) {
+                    case T_FLOOR:  batch.setColor(0.16f, 0.14f, 0.12f, 1f); break;
+                    case T_WALL:   batch.setColor(0.28f, 0.26f, 0.23f, 1f); break;
+                    case T_BAR:    batch.setColor(0.25f, 0.14f, 0.08f, 1f); break;
+                    case T_KITCH:  batch.setColor(0.14f, 0.20f, 0.16f, 1f); break;
+                    case T_TABLE:  batch.setColor(0.22f, 0.16f, 0.10f, 1f); break;
+                    case T_TOILET: batch.setColor(0.14f, 0.16f, 0.22f, 1f); break;
+                    default:       batch.setColor(1, 1, 1, 1); break;
+                }
+
+                batch.draw(whitePixel, x * tileSize, y * tileSize, tileSize, tileSize);
+            }
+        }
+        batch.setColor(1f, 1f, 1f, 1f);
         for (Agent a : worldSim.getAgents()) {
-            float size = 12f;
-
-            // Bob = tiny up/down movement
-            float bob = (float) Math.sin((a.x + a.y) * 0.01f + time) * 2f;
-
-            // Per-agent colour variance (requires Agent.r/g/b fields + spawn init)
+            float size = tileSize * 0.6f;
             batch.setColor(a.r, a.g, a.b, 1f);
-
-            batch.draw(whitePixel,
-                    a.x + ox - size/2f,
-                    a.y + oy - size/2f + bob,
-                    size, size
+            batch.draw(
+                    whitePixel,
+                    a.x - size / 2f,
+                    a.y - size / 2f,
+                    size,
+                    size
             );
         }
+
 
         // Spills (semi-transparent, fade out)
         for (Spill s : chaosFX.getSpills()) {
@@ -427,11 +518,20 @@ public class AlivePackScreen implements Screen {
 
         batch.end();
     }
+    private boolean isWalkable(byte t) {
+        return t == T_FLOOR; // keep strict for now
+    }
+
+    private boolean inBounds(int x, int y) {
+        return x >= 0 && y >= 0 && x < gridW && y < gridH;
+    }
 
 
 
     private void update(float delta) {
         sim.update(delta);
+        handleWorldCamera(delta);
+
 
         float dt = Math.min(delta, 1f / 30f);
         if (!sim.paused) {
@@ -467,10 +567,10 @@ public class AlivePackScreen implements Screen {
         chaosLabel.setText("Chaos: " + sim.chaos);
         moraleLabel.setText("Morale: " + sim.morale);
 
-        if (sim.cash != lastCash) { pop(cashLabel); lastCash = sim.cash; }
-        if (sim.reputation != lastRep) { pop(repLabel); lastRep = sim.reputation; }
-        if (sim.chaos != lastChaos) { pop(chaosLabel); lastChaos = sim.chaos; }
-        if (sim.morale != lastMorale) { pop(moraleLabel); lastMorale = sim.morale; }
+        if (sim.cash != lastCash) { popAndFlash(cashLabel); lastCash = sim.cash; }
+        if (sim.reputation != lastRep) { popAndFlash(repLabel); lastRep = sim.reputation; }
+        if (sim.chaos != lastChaos) { popAndFlash(chaosLabel); lastChaos = sim.chaos; }
+        if (sim.morale != lastMorale) { popAndFlash(moraleLabel); lastMorale = sim.morale; }
 
         // Optional keyboard controls still work
         if (Gdx.input.isKeyJustPressed(com.badlogic.gdx.Input.Keys.SPACE)) {
@@ -488,7 +588,6 @@ public class AlivePackScreen implements Screen {
 
         // World bounds
         computeWorldBounds(width, height);
-        worldSim.setBounds(worldX, worldY, worldW, worldH);
 
         // Drawers height + positions
         if (leftDrawer != null) leftDrawer.setHeight(height);
@@ -518,4 +617,94 @@ public class AlivePackScreen implements Screen {
         if (font != null) font.dispose();
         if (whitePixel != null) whitePixel.dispose();
     }
+
+    private void buildDemoPubLayout() {
+        // Default void
+        for (int x = 0; x < gridW; x++) {
+            for (int y = 0; y < gridH; y++) tiles[x][y] = T_VOID;
+        }
+
+        // Pub footprint
+        int x0 = 3, y0 = 3;
+        int x1 = gridW - 4, y1 = gridH - 4;
+
+        // Floors
+        for (int x = x0; x <= x1; x++) {
+            for (int y = y0; y <= y1; y++) tiles[x][y] = T_FLOOR;
+        }
+
+        // Walls border
+        for (int x = x0; x <= x1; x++) {
+            tiles[x][y0] = T_WALL;
+            tiles[x][y1] = T_WALL;
+        }
+        for (int y = y0; y <= y1; y++) {
+            tiles[x0][y] = T_WALL;
+            tiles[x1][y] = T_WALL;
+        }
+
+        // Bar (top-left-ish)
+        for (int x = x0 + 3; x <= x0 + 14; x++) {
+            for (int y = y1 - 6; y <= y1 - 5; y++) tiles[x][y] = T_BAR;
+        }
+
+        // Kitchen room (top-right)
+        for (int x = x1 - 10; x <= x1 - 2; x++) {
+            for (int y = y1 - 9; y <= y1 - 2; y++) tiles[x][y] = T_KITCH;
+        }
+        // Kitchen “walls” outline
+        for (int x = x1 - 10; x <= x1 - 2; x++) {
+            tiles[x][y1 - 9] = T_WALL;
+            tiles[x][y1 - 2] = T_WALL;
+        }
+        for (int y = y1 - 9; y <= y1 - 2; y++) {
+            tiles[x1 - 10][y] = T_WALL;
+            tiles[x1 - 2][y]  = T_WALL;
+        }
+
+        // Toilets (bottom-right)
+        for (int x = x1 - 8; x <= x1 - 2; x++) {
+            for (int y = y0 + 2; y <= y0 + 7; y++) tiles[x][y] = T_TOILET;
+        }
+        for (int x = x1 - 8; x <= x1 - 2; x++) {
+            tiles[x][y0 + 2] = T_WALL;
+            tiles[x][y0 + 7] = T_WALL;
+        }
+        for (int y = y0 + 2; y <= y0 + 7; y++) {
+            tiles[x1 - 8][y] = T_WALL;
+            tiles[x1 - 2][y] = T_WALL;
+        }
+
+        // Tables scattered
+        for (int x = x0 + 6; x <= x1 - 12; x += 5) {
+            for (int y = y0 + 6; y <= y1 - 12; y += 4) {
+                tiles[x][y] = T_TABLE;
+            }
+        }
+    }
+
+    private void handleWorldCamera(float delta) {
+        float dt = Math.min(delta, 1f/30f);
+
+        float move = camSpeed * dt * (Gdx.input.isKeyPressed(Input.Keys.SHIFT_LEFT) ? 2f : 1f);
+
+        if (Gdx.input.isKeyPressed(Input.Keys.A) || Gdx.input.isKeyPressed(Input.Keys.LEFT))  worldCam.position.x -= move;
+        if (Gdx.input.isKeyPressed(Input.Keys.D) || Gdx.input.isKeyPressed(Input.Keys.RIGHT)) worldCam.position.x += move;
+        if (Gdx.input.isKeyPressed(Input.Keys.W) || Gdx.input.isKeyPressed(Input.Keys.UP))    worldCam.position.y += move;
+        if (Gdx.input.isKeyPressed(Input.Keys.S) || Gdx.input.isKeyPressed(Input.Keys.DOWN))  worldCam.position.y -= move;
+
+        // Zoom (mouse wheel)
+        float scroll = -Gdx.input.getRoll(); // lwjgl3 uses scrollY
+        if (scroll != 0) {
+            worldCam.zoom = clamp(worldCam.zoom - scroll * zoomSpeed, 0.5f, 3.0f);
+        }
+
+        worldCam.update();
+    }
+
+    private float clamp(float v, float min, float max) {
+        return Math.max(min, Math.min(max, v));
+    }
+
+
 }

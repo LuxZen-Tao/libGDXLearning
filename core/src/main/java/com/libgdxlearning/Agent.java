@@ -1,10 +1,21 @@
 package com.libgdxlearning;
 
 public class Agent {
-    public float x, y;
-    public float tx, ty;      // target
-    public float speed;       // units per second
-    public float changeTimer; // time until new target
-    public float r, g, b;
+    // current tile
+    public int tx, ty;
 
+    // goal tile
+    public int gx, gy;
+
+    // current position in world pixels (center of tile)
+    public float x, y;
+
+    // next target tile center in pixels
+    public float targetX, targetY;
+
+    public float speedTilesPerSec;
+    public float repathTimer;
+
+    // color tint
+    public float r, g, b;
 }
