@@ -1,0 +1,40 @@
+## Java
+*.class
+*.war
+*.ear
+hs_err_pid*
+
+## Gradle
+.gradle
+build/
+gradle-app.setting
+!gradle-wrapper.jar
+!gradle-wrapper.properties
+
+## IntelliJ
+.idea/
+*.ipr
+*.iws
+*.iml
+out/
+
+## Eclipse
+.classpath
+.project
+.metadata
+.settings/
+bin/
+tmp/
+
+## NetBeans
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+
+## OS Specific
+.DS_Store
+Thumbs.db
+
+## Local
+local.properties
