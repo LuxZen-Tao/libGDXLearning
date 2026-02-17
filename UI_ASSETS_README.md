@@ -48,5 +48,4 @@ See `UISkinTestScreen.java` for a complete example of loading and using the UI s
 
 ## Source
 
-These assets are the standard libGDX UI skin files from the official libGDX repository:
-https://github.com/libgdx/libgdx/tree/master/tests/gdx-tests-android/assets/data
+These assets are standard libGDX UI skin files from the official libGDX repository. They are commonly used for UI development and testing in libGDX applications.
