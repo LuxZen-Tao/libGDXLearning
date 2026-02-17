@@ -11,6 +11,8 @@ public class WorldSim {
 
     // World bounds
     private float x, y, w, h;
+    public float r, g, b;
+
 
     public void setBounds(float x, float y, float w, float h) {
         this.x = x;
@@ -25,6 +27,9 @@ public class WorldSim {
         agents.clear();
         for (int i = 0; i < count; i++) {
             Agent a = new Agent();
+            a.r = rand(0.8f, 1f);
+            a.g = rand(0.6f, 0.9f);
+            a.b = rand(0.2f, 0.5f);
             a.x = rand(x, x + w);
             a.y = rand(y, y + h);
             pickNewTarget(a);

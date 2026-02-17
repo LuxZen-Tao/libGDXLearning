@@ -351,20 +351,36 @@ public class AlivePackScreen implements Screen {
     private void drawWorld() {
         batch.begin();
 
-        // Darker floor (much darker)
+        // Floor
         batch.setColor(0.08f, 0.08f, 0.12f, 1f);
         batch.draw(whitePixel, worldX, worldY, worldW, worldH);
 
-        // Brighter, larger agents
-        batch.setColor(1f, 0.8f, 0.2f, 1f); // warm gold so they pop
+        float time = (float) sim.minutes * 0.02f; // slow oscillation
+
         for (Agent a : worldSim.getAgents()) {
-            float size = 12f;   // WAS 6f
-            batch.draw(whitePixel, a.x - size / 2f, a.y - size / 2f, size, size);
+            float size = 12f;
+
+            // Bob = tiny up/down movement
+            float bob = (float) Math.sin((a.x + a.y) * 0.01f + time) * 2f;
+
+            // Per-agent colour variance (requires Agent.r/g/b fields + spawn init)
+            batch.setColor(a.r, a.g, a.b, 1f);
+
+            batch.draw(
+                    whitePixel,
+                    a.x - size / 2f,
+                    a.y - size / 2f + bob,
+                    size,
+                    size
+            );
         }
 
+        // Reset for safety
         batch.setColor(1f, 1f, 1f, 1f);
+
         batch.end();
     }
+
 
 
     private void update(float delta) {
@@ -373,6 +389,11 @@ public class AlivePackScreen implements Screen {
         float dt = Math.min(delta, 1f / 30f);
         if (!sim.paused) {
             worldSim.update(dt * sim.speedMultiplier);
+        }
+        int targetCount = 20 + sim.chaos * 2;
+
+        if (worldSim.getAgents().size() != targetCount) {
+            worldSim.spawn(targetCount);
         }
 
         timeLabel.setText(String.format("Day %d  %02d:%02d  |  %s  x%.0f",

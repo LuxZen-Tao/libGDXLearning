@@ -5,4 +5,6 @@ public class Agent {
     public float tx, ty;      // target
     public float speed;       // units per second
     public float changeTimer; // time until new target
+    public float r, g, b;
+
 }
