@@ -3,6 +3,7 @@ package com.libgdxlearning;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Screen;
@@ -51,6 +52,11 @@ public class AlivePackScreen implements Screen {
 
     private TextButton leftDrawerBtn;
     private TextButton rightDrawerBtn;
+    private Texture whitePixel;
+    private WorldSim worldSim;
+
+    // World area bounds (in screen coordinates)
+    private float worldX, worldY, worldW, worldH;
 
 
 
@@ -63,11 +69,15 @@ public class AlivePackScreen implements Screen {
     @Override
     public void show() {
         // Called when this screen becomes the current screen for a Game.
+        sim = new SimState();
 
         batch = new SpriteBatch();
         font = new BitmapFont();
         stage = new Stage(new ScreenViewport());
         Gdx.input.setInputProcessor(stage);
+        whitePixel = DebugPixel.createWhitePixel();
+        worldSim = new WorldSim();
+
 
         skin = new Skin(Gdx.files.internal("assets/uiskin.json"));
         toast = new ToastManager(stage.getRoot(), skin);
@@ -245,7 +255,6 @@ public class AlivePackScreen implements Screen {
 
         bottomControls.add(leftDrawerBtn);
         bottomControls.add(rightDrawerBtn);
-        sim = new SimState();
 
         leftDrawerBtn.addListener(new ClickListener() {
             @Override public void clicked(InputEvent event, float x, float y) {
@@ -258,6 +267,15 @@ public class AlivePackScreen implements Screen {
                 toggleRightDrawer();
             }
         });
+
+        // Initial world bounds guess (will update in resize)
+        worldX = 30;
+        worldY = 120;
+        worldW = Gdx.graphics.getWidth() - 60;
+        worldH = Gdx.graphics.getHeight() - 220;
+
+        worldSim.setBounds(worldX, worldY, worldW, worldH);
+        worldSim.spawn(30);
 
     }
     private void toggleLeftDrawer() {
@@ -320,14 +338,34 @@ public class AlivePackScreen implements Screen {
         Gdx.gl.glClearColor(0.06f, 0.06f, 0.09f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
+        drawWorld();
+
 // (For now) no separate world rendering; Stage will render UI.
         stage.act(Math.min(delta, 1f / 30f)); // clamp for stability
         stage.draw();
 
     }
+    private void drawWorld() {
+        batch.begin();
+
+        // Draw “pub floor” background rectangle
+        batch.draw(whitePixel, worldX, worldY, worldW, worldH);
+
+        // Draw agents as small squares/dots
+        for (Agent a : worldSim.getAgents()) {
+            float size = 6f;
+            batch.draw(whitePixel, a.x - size/2f, a.y - size/2f, size, size);
+        }
+
+        batch.end();
+    }
 
     private void update(float delta) {
         sim.update(delta);
+        float dt = Math.min(delta, 1f / 30f);
+        if (!sim.paused) {
+            worldSim.update(dt * sim.speedMultiplier);
+        }
         timeLabel.setText(String.format("Day %d  %02d:%02d  |  %s  x%.0f",
                 sim.day, sim.getHour(), sim.getMinute(),
                 sim.paused ? "PAUSED" : "RUNNING",
@@ -388,6 +426,13 @@ public class AlivePackScreen implements Screen {
         stage.getViewport().update(width, height, true);
         leftDrawer.setHeight(height);
         rightDrawer.setHeight(height);
+        worldX = 30;
+        worldY = 120;
+        worldW = width - 60;
+        worldH = height - 220;
+
+        worldSim.setBounds(worldX, worldY, worldW, worldH);
+
 
 // Keep drawers correctly positioned depending on open/closed state:
         if (leftOpen) leftDrawer.setPosition(0, 0);
@@ -420,5 +465,6 @@ public class AlivePackScreen implements Screen {
         skin.dispose();
         batch.dispose();
         font.dispose();
+        whitePixel.dispose();
     }
 }
