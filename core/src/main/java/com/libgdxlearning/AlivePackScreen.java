@@ -18,6 +18,10 @@ import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.math.Vector3;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.math.MathUtils;
+import java.util.ArrayList;
+import java.util.List;
+
 
 
 public class AlivePackScreen implements Screen {
@@ -28,6 +32,10 @@ public class AlivePackScreen implements Screen {
     private static final byte T_KITCH  = 4;
     private static final byte T_TABLE  = 5;
     private static final byte T_TOILET = 6;
+    private List<int[]> barTiles = new ArrayList<>();
+    private List<int[]> tableTiles = new ArrayList<>();
+    private List<int[]> toiletTiles = new ArrayList<>();
+
 
 
     private SpriteBatch batch;
@@ -117,9 +125,13 @@ public class AlivePackScreen implements Screen {
 
         tiles = new byte[gridW][gridH];
         buildDemoPubLayout();
+        collectHotspots();
+
 
         worldSim = new TileWorldSim();
         worldSim.setMap(tiles, gridW, gridH, tileSize);
+        worldSim.setHotspots(barTiles, tableTiles, toiletTiles);
+
         worldSim.spawn(30);
         // Your assets are inside desktop/resources/assets/, so include "assets/" in the path:
         skin = new Skin(Gdx.files.internal("assets/uiskin.json"));
@@ -390,6 +402,21 @@ public class AlivePackScreen implements Screen {
                 Actions.run(() -> rightDrawer.setTouchable(Touchable.disabled))
         ));
     }
+    private void collectHotspots() {
+        barTiles.clear();
+        tableTiles.clear();
+        toiletTiles.clear();
+
+        for (int x = 0; x < gridW; x++) {
+            for (int y = 0; y < gridH; y++) {
+                byte t = tiles[x][y];
+                if (t == T_BAR) barTiles.add(new int[]{x, y});
+                if (t == T_TABLE) tableTiles.add(new int[]{x, y});
+                if (t == T_TOILET) toiletTiles.add(new int[]{x, y});
+            }
+        }
+    }
+
 
     private void popAndFlash(com.badlogic.gdx.scenes.scene2d.Actor actor) {
         actor.clearActions();

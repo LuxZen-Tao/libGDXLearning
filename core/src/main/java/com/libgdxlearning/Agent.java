@@ -18,4 +18,7 @@ public class Agent {
 
     // color tint
     public float r, g, b;
+    public float needToilet; // 0..1
+    public float patience;   // idle time when reaching target
+
 }

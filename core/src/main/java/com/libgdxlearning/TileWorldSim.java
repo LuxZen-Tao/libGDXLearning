@@ -13,6 +13,12 @@ public class TileWorldSim {
     private int gridW, gridH;
     private int tileSize;
 
+    private List<int[]> barTiles;
+    private List<int[]> tableTiles;
+    private List<int[]> toiletTiles;
+    private int[][] occ;
+
+
     // Tile IDs: must match AlivePackScreen values
     private static final byte T_FLOOR = 1;
 
@@ -21,6 +27,14 @@ public class TileWorldSim {
         this.gridW = gridW;
         this.gridH = gridH;
         this.tileSize = tileSize;
+        this.occ = new int[gridW][gridH];
+
+    }
+
+    public void setHotspots(List<int[]> barTiles, List<int[]> tableTiles, List<int[]> toiletTiles) {
+        this.barTiles = barTiles;
+        this.tableTiles = tableTiles;
+        this.toiletTiles = toiletTiles;
     }
 
     public List<Agent> getAgents() { return agents; }
@@ -39,11 +53,14 @@ public class TileWorldSim {
             a.x = a.tx * tileSize + tileSize * 0.5f;
             a.y = a.ty * tileSize + tileSize * 0.5f;
 
-            // start by standing still on current tile center
             a.targetX = a.x;
             a.targetY = a.y;
 
-            int[] goal = randomWalkableTile();
+            // Needs start low
+            a.needToilet = rand(0f, 0.25f);
+            a.patience = rand(0f, 0.6f);
+
+            int[] goal = pickGoalFor(a);
             a.gx = goal[0];
             a.gy = goal[1];
 
@@ -60,17 +77,29 @@ public class TileWorldSim {
 
     public void update(float dt) {
         if (tiles == null) return;
+        rebuildOccupancy();
 
         for (Agent a : agents) {
+
+            // Needs drift upward every frame (not only on repath)
+            a.needToilet = Math.min(1f, a.needToilet + dt * 0.03f);
+
+            // Idle/patience: if waiting, do nothing this frame
+            if (a.patience > 0f) {
+                a.patience -= dt;
+                continue;
+            }
+
+            // Repath timer: occasionally choose a new goal
             a.repathTimer -= dt;
             if (a.repathTimer <= 0f) {
-                int[] goal = randomWalkableTile();
+                int[] goal = pickGoalFor(a);
                 a.gx = goal[0];
                 a.gy = goal[1];
                 a.repathTimer = rand(1.5f, 4.5f);
             }
 
-            // Smooth move towards target tile center
+            // Smooth move towards next target tile center
             float dx = a.targetX - a.x;
             float dy = a.targetY - a.y;
             float dist2 = dx*dx + dy*dy;
@@ -105,8 +134,16 @@ public class TileWorldSim {
         int cx = a.tx;
         int cy = a.ty;
 
+        // Arrived at goal
         if (cx == a.gx && cy == a.gy) {
-            int[] goal = randomWalkableTile();
+            a.patience = rand(0.2f, 1.2f);
+
+            // If arrived at toilet tile, reset need
+            if (isToiletTile(cx, cy)) {
+                a.needToilet = rand(0f, 0.2f);
+            }
+
+            int[] goal = pickGoalFor(a);
             a.gx = goal[0];
             a.gy = goal[1];
             return;
@@ -124,7 +161,18 @@ public class TileWorldSim {
             if (!inBounds(nx, ny)) continue;
             if (!isWalkable(tiles[nx][ny])) continue;
 
-            int score = manhattan(nx, ny, a.gx, a.gy);
+            int distScore = manhattan(nx, ny, a.gx, a.gy);
+
+// soft occupancy penalty:
+// 0 occupants = +0
+// 1 occupant  = +2
+// 2 occupants = +5 etc
+            int occPenalty = occ[nx][ny] == 0 ? 0 : (2 + occ[nx][ny] * 3);
+
+// tiny randomness to prevent identical choices
+            int noise = rng.nextInt(2); // 0 or 1
+
+            int score = distScore + occPenalty + noise;
             if (score < bestScore) {
                 bestScore = score;
                 bestNx = nx;
@@ -132,8 +180,9 @@ public class TileWorldSim {
             }
         }
 
+        // If stuck, pick a new goal
         if (bestNx == cx && bestNy == cy) {
-            int[] goal = randomWalkableTile();
+            int[] goal = pickGoalFor(a);
             a.gx = goal[0];
             a.gy = goal[1];
             return;
@@ -141,6 +190,51 @@ public class TileWorldSim {
 
         a.targetX = bestNx * tileSize + tileSize * 0.5f;
         a.targetY = bestNy * tileSize + tileSize * 0.5f;
+    }
+
+    private boolean isToiletTile(int x, int y) {
+        if (toiletTiles == null || toiletTiles.isEmpty()) return false;
+        for (int[] t : toiletTiles) {
+            if (t[0] == x && t[1] == y) return true;
+        }
+        return false;
+    }
+
+    private int[] pickGoalFor(Agent a) {
+        float toiletWeight = 0.15f + a.needToilet * 2.5f;
+        float barWeight = 1.2f;
+        float tableWeight = 1.6f;
+
+        boolean hasBar = barTiles != null && !barTiles.isEmpty();
+        boolean hasTables = tableTiles != null && !tableTiles.isEmpty();
+        boolean hasToilets = toiletTiles != null && !toiletTiles.isEmpty();
+
+        float total = 0f;
+        if (hasTables) total += tableWeight;
+        if (hasBar) total += barWeight;
+        if (hasToilets) total += toiletWeight;
+
+        if (total <= 0f) return randomWalkableTile();
+
+        float roll = rng.nextFloat() * total;
+
+        if (hasTables) {
+            roll -= tableWeight;
+            if (roll <= 0f) return pickRandomFrom(tableTiles);
+        }
+        if (hasBar) {
+            roll -= barWeight;
+            if (roll <= 0f) return pickRandomFrom(barTiles);
+        }
+        if (hasToilets) {
+            return pickRandomFrom(toiletTiles);
+        }
+
+        return randomWalkableTile();
+    }
+
+    private int[] pickRandomFrom(List<int[]> list) {
+        return list.get(rng.nextInt(list.size()));
     }
 
     private boolean isWalkable(byte t) {
@@ -176,4 +270,20 @@ public class TileWorldSim {
     private float rand(float min, float max) {
         return min + rng.nextFloat() * (max - min);
     }
+    private void rebuildOccupancy() {
+        // clear
+        for (int x = 0; x < gridW; x++) {
+            for (int y = 0; y < gridH; y++) {
+                occ[x][y] = 0;
+            }
+        }
+
+        // count agents by tile
+        for (Agent a : agents) {
+            int tx = a.tx;
+            int ty = a.ty;
+            if (inBounds(tx, ty)) occ[tx][ty]++;
+        }
+    }
+
 }
