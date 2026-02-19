@@ -2,6 +2,7 @@ package com.libgdxlearning;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.InputMultiplexer;
 import com.badlogic.gdx.Screen;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.scenes.scene2d.Actor;
@@ -14,6 +15,10 @@ import com.badlogic.gdx.scenes.scene2d.utils.ChangeListener;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
 import com.badlogic.gdx.utils.Align;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
+import com.libgdxlearning.input.WorldInput;
+import com.libgdxlearning.render.WorldView;
+import com.libgdxlearning.rooms.RoomPlacementSystem;
+import com.libgdxlearning.world.Grid;
 
 public class AlivePackScreen implements Screen {
 
@@ -22,6 +27,9 @@ public class AlivePackScreen implements Screen {
     private Stage stage;
     private Skin skin;
     private ToastManager toast;
+
+    // World
+    private WorldView worldView;
 
     // HUD
     private Table root;
@@ -44,7 +52,18 @@ public class AlivePackScreen implements Screen {
         sim = new SimState();
 
         stage = new Stage(new ScreenViewport());
-        Gdx.input.setInputProcessor(stage);
+
+        // World model + placement system
+        Grid grid = new Grid(80, 60);
+        RoomPlacementSystem placer = new RoomPlacementSystem(grid);
+        worldView = new WorldView(grid, placer);
+        worldView.setTouchable(Touchable.disabled); // prevent Stage hit-testing from intercepting world-area clicks (handled by WorldInput)
+
+        // InputMultiplexer: UI stage first (buttons take priority), then world input
+        InputMultiplexer multiplexer = new InputMultiplexer();
+        multiplexer.addProcessor(stage);
+        multiplexer.addProcessor(new WorldInput(worldView, placer));
+        Gdx.input.setInputProcessor(multiplexer);
 
         skin = new Skin(Gdx.files.internal("assets/uiskin.json"));
         toast = new ToastManager(stage.getRoot(), skin);
@@ -167,7 +186,7 @@ public class AlivePackScreen implements Screen {
 
         root.top().left();
         root.add(topHud).expandX().fillX().row();
-        root.add().expand().fill().row(); // world area spacer
+        root.add(worldView).expand().fill().row(); // world view fills center
         root.add(bottomControls).expandX().fillX();
 
         buildDrawers();
@@ -305,7 +324,8 @@ public class AlivePackScreen implements Screen {
 
     @Override
     public void dispose() {
-        if (stage != null) stage.dispose();
-        if (skin  != null) skin.dispose();
+        if (stage != null)     stage.dispose();
+        if (skin  != null)     skin.dispose();
+        if (worldView != null) worldView.dispose();
     }
 }
