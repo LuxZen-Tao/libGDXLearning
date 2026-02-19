@@ -1,21 +1,25 @@
 # libGDX Learning
 
-A base libGDX template project for learning libGDX from the ground up.
+A libGDX learning project with a simple scene2d UI skeleton.
 
 ## Project Structure
 
 ```
 libGDXLearning/
-├── core/                   # Core game code (platform-independent)
-│   └── src/main/java/
-│       └── com/libgdxlearning/
-│           └── MyGdxGame.java
-├── desktop/                # Desktop launcher
-│   └── src/main/java/
-│       └── com/libgdxlearning/
-│           └── DesktopLauncher.java
-├── build.gradle            # Main build configuration
-└── settings.gradle         # Project settings
+├── core/                           # Core game code (platform-independent)
+│   ├── assets/
+│   │   └── maps/                   # Tiled map assets (optional)
+│   └── src/main/java/com/libgdxlearning/
+│       ├── MainGame.java           # Entry point – sets up AlivePackScreen
+│       ├── AlivePackScreen.java    # Main screen: HUD, drawers, toasts, sim controls
+│       ├── SimState.java           # Game state (cash, rep, chaos, morale, time)
+│       └── ToastManager.java       # Animated toast notifications
+├── desktop/
+│   ├── src/main/java/com/libgdxlearning/
+│   │   └── DesktopLauncher.java    # Desktop entry point (800×600, 60 FPS)
+│   └── src/main/resources/assets/ # UI skin files (uiskin.json/atlas/png, fonts)
+├── build.gradle
+└── settings.gradle
 ```
 
 ## Requirements
@@ -35,28 +39,20 @@ libGDXLearning/
 ./gradlew desktop:run
 ```
 
-This will launch a window displaying "Welcome to libGDX!" with the current FPS.
+This launches an 800×600 window with:
+- **Top HUD** – day/time clock, cash, rep, chaos, morale (with flash-on-change animations)
+- **Bottom bar** – pause, speed (x1/x2/x4), and stat-manipulation buttons
+- **Side drawers** – "Feed" (left) and "Manage" (right), slide in/out with animation
+- **Toast notifications** – fade-in/slide-out messages
 
-## What's Included
+### Keyboard Shortcuts
 
-- **MyGdxGame.java**: The main game class that extends `ApplicationAdapter`
-  - `create()`: Initialize resources (runs once)
-  - `render()`: Main game loop (runs every frame)
-  - `dispose()`: Clean up resources
-
-- **DesktopLauncher.java**: Desktop entry point
-  - Configures window size (800x600)
-  - Sets target FPS (60)
-  - Creates the application
-
-## Next Steps
-
-Start modifying `MyGdxGame.java` to build your game:
-- Add sprites and textures
-- Implement game logic
-- Add input handling
-- Create game screens
-- And more!
+| Key      | Action            |
+|----------|-------------------|
+| `Space`  | Pause / Resume    |
+| `1`      | Speed x1          |
+| `2`      | Speed x2          |
+| `3`      | Speed x4          |
 
 ## Resources
 
