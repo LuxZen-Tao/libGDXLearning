@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="16" tileheight="16" infinite="0" nextlayerid="11" nextobjectid="1">
- <tileset firstgid="1" source="TopDownHouse_FloorsAndWalls.tsx"/>
- <tileset firstgid="163" source="TopDownHouse_FurnitureState1.tsx"/>
- <tileset firstgid="397" source="4 BigSet.tsx"/>
+ <tileset firstgid="1" source="../tiles/TopDownHouse_FloorsAndWalls.tsx"/>
+ <tileset firstgid="163" source="../tiles/TopDownHouse_FurnitureState1.tsx"/>
+ <tileset firstgid="397" source="../tiles/4 BigSet.tsx"/>
  <layer id="1" name="Ground" width="30" height="20">
   <data encoding="csv">
 100,119,102,103,100,101,102,103,100,101,102,119,120,120,100,101,102,101,102,103,119,101,102,103,100,101,102,103,20,2684354580,
