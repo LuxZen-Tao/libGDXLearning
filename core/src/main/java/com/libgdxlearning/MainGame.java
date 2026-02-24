@@ -6,7 +6,7 @@ public class MainGame extends Game {
 
     @Override
     public void create() {
-        setScreen(new AlivePackScreen());
+        setScreen(new TiledWorldScreen(this));
     }
 
     @Override

@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <map version="1.10" tiledversion="1.11.2" orientation="orthogonal" renderorder="right-down" width="30" height="20" tilewidth="32" tileheight="32" infinite="0" nextlayerid="14" nextobjectid="49">
- <tileset firstgid="1" source="Tmaps/floors.tsx"/>
- <tileset firstgid="2049" source="Tmaps/walls.tsx"/>
- <tileset firstgid="8193" source="LITE.tsx"/>
- <tileset firstgid="8417" source="Tmaps/interior.tsx"/>
+ <tileset firstgid="1" source="tilesets/floors.tsx"/>
+ <tileset firstgid="2049" source="tilesets/walls.tsx"/>
+ <tileset firstgid="8193" source="tilesets/LITE.tsx"/>
+ <tileset firstgid="8417" source="tilesets/interior.tsx"/>
  <layer id="1" name="ground" width="30" height="20">
   <data encoding="csv">
 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1736,1736,

@@ -34,16 +34,12 @@ project(":core") {
     sourceSets {
         main {
             resources {
-                srcDirs = ['assets']
+                srcDirs = ['assets', '../assets']
             }
         }
     }
 
     dependencies {
         api "com.badlogicgames.gdx:gdx:$gdxVersion"
-        implementation "com.badlogicgames.gdx:gdx-tiled-preprocessor:$gdxVersion" // optional
-        implementation "com.badlogicgames.gdx:gdx:$gdxVersion"
-        implementation "com.badlogicgames.gdx:gdx-tiledmaps:$gdxVersion"
-
     }
 }
